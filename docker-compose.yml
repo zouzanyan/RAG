@@ -1,0 +1,122 @@
+# Docker Compose 编排文件
+# 用于本地开发和生产部署
+
+version: '3.8'
+
+services:
+  # RAG API 服务
+  rag-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-api
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    environment:
+      # SiliconFlow API
+      - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
+
+      # 模型配置
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-BAAI/bge-m3}
+      - RERANKER_MODEL=${RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}
+      - RERANKER_ENABLED=${RERANKER_ENABLED:-true}
+      - RERANKER_TOP_N=${RERANKER_TOP_N:-3}
+      - LLM_MODEL=${LLM_MODEL:-Qwen/Qwen3-8B}
+      - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.0}
+
+      # 向量数据库
+      - CHROMA_PERSIST_DIR=/app/chroma_db
+
+      # 文档处理
+      - DEFAULT_CHUNK_SIZE=${DEFAULT_CHUNK_SIZE:-500}
+      - DEFAULT_CHUNK_OVERLAP=${DEFAULT_CHUNK_OVERLAP:-50}
+
+      # Redis 缓存
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=${REDIS_DB:-0}
+      - REDIS_ENABLED=${REDIS_ENABLED:-true}
+      - CACHE_TTL_QUERY=${CACHE_TTL_QUERY:-3600}
+      - CACHE_TTL_RESPONSE=${CACHE_TTL_RESPONSE:-86400}
+
+      # 应用配置
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8000
+      - WORKERS=${WORKERS:-1}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+      # 并发控制
+      - MAX_CONCURRENT_REQUESTS=${MAX_CONCURRENT_REQUESTS:-50}
+
+      # 重试配置
+      - MAX_RETRIES=${MAX_RETRIES:-3}
+      - RETRY_DELAY=${RETRY_DELAY:-1.0}
+    volumes:
+      # 持久化向量库
+      - chroma_data:/app/chroma_db
+      # 日志输出
+      - ./logs:/app/logs
+      # 上传文件
+      - ./uploads:/app/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - rag-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: rag-redis
+    ports:
+      - "6379:6379"
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - rag-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Nginx 反向代理（可选）
+  nginx:
+    image: nginx:alpine
+    container_name: rag-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - rag-api
+    restart: unless-stopped
+    networks:
+      - rag-network
+    profiles:
+      - with-nginx  # 使用 --profile with-nginx 启用
+
+# 数据卷
+volumes:
+  chroma_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# 网络
+networks:
+  rag-network:
+    driver: bridge
