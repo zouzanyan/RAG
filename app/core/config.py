@@ -63,8 +63,8 @@ class Settings(BaseSettings):
 
     # 文档处理配置
     split_strategy: str = Field(
-        default="chinese",
-        description="文档分块策略: fixed, chinese, markdown, code, parent_child"
+        default="recursive",
+        description="文档切分策略: recursive(递归), fixed(固定长度), parent_child(父子文档)"
     )
     default_chunk_size: int = Field(
         default=1000,
@@ -78,9 +78,13 @@ class Settings(BaseSettings):
         le=1000,
         description="文档切分重叠大小"
     )
+    separator_type: str = Field(
+        default="auto",
+        description="分隔符类型(仅用于recursive策略): auto, chinese, markdown, code, english"
+    )
     auto_detect_content_type: bool = Field(
         default=True,
-        description="是否自动检测内容类型并选择策略"
+        description="是否自动检测内容类型并选择分隔符"
     )
 
     # Redis 缓存配置

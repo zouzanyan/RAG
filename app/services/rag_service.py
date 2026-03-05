@@ -23,10 +23,7 @@ from tenacity import (
 
 from app.core.config import settings
 from app.services.reranker import SiliconFlowReranker
-from app.services.document_processor import (
-    AdaptiveDocumentProcessor,
-    create_document_processor,
-)
+from app.services.document_processor import DocumentSplitter
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -143,22 +140,21 @@ class LocalKnowledgeEngine:
 
         # 使用新的文档处理器
         def _split():
-            # 如果启用自动检测
             if settings.auto_detect_content_type:
-                logger.info("Using auto-detect content type strategy")
-                return AdaptiveDocumentProcessor.auto_detect_and_split(
+                logger.info("Using auto-detect content type")
+                return DocumentSplitter.auto_detect_and_split(
                     self.docs,
-                    default_chunk_size=chunk_size,
-                    default_overlap=chunk_overlap,
-                )
-            else:
-                # 使用指定策略
-                processor = create_document_processor(
-                    strategy=split_strategy,
                     chunk_size=chunk_size,
                     chunk_overlap=chunk_overlap,
                 )
-                return processor.split_documents(self.docs)
+            else:
+                splitter = DocumentSplitter(
+                    strategy=settings.split_strategy,
+                    separator_type=settings.separator_type,
+                    chunk_size=chunk_size,
+                    chunk_overlap=chunk_overlap,
+                )
+                return splitter.split(self.docs)
 
         chunks = await loop.run_in_executor(None, _split)
 
@@ -239,7 +235,15 @@ class LocalKnowledgeEngine:
         prompt = ChatPromptTemplate.from_template(template)
 
         def format_docs(docs):
-            return "\n\n".join(doc.page_content for doc in docs)
+            """格式化文档为上下文，父子文档策略下优先使用父文档内容"""
+            formatted_parts = []
+            for doc in docs:
+                # 如果有父文档内容，使用父文档（更丰富的上下文）
+                if doc.metadata.get("parent_content"):
+                    formatted_parts.append(doc.metadata["parent_content"])
+                else:
+                    formatted_parts.append(doc.page_content)
+            return "\n\n".join(formatted_parts)
 
         async def retrieve_and_rerank(question: str) -> List[Document]:
             """检索并可选地进行 rerank"""
