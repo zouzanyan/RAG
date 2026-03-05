@@ -1,187 +1,155 @@
 """配置管理模块
 
-使用 pydantic-settings 管理所有配置，支持从环境变量读取。
+优先级：环境变量 > config.yaml > 默认值
 """
+import os
+import re
 from functools import lru_cache
-from typing import Optional
-from pydantic import Field
+from pathlib import Path
+from typing import Optional, Any
+import yaml
+
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _substitute_env(value: str) -> str:
+    """替换环境变量 ${VAR:default} 语法"""
+    if not isinstance(value, str):
+        return value
+
+    pattern = r'\$\{([^:}]+)(?::([^}]*))?\}'
+
+    def replace_var(match):
+        var_name = match.group(1)
+        default_val = match.group(2) if match.group(2) is not None else ""
+        return os.getenv(var_name, default_val)
+
+    return re.sub(pattern, replace_var, value)
+
+
+def _load_config_yaml() -> dict:
+    """加载 config.yaml 并替换环境变量"""
+    config_path = Path("config.yaml")
+    if not config_path.exists():
+        return {}
+
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f) or {}
+
+    # 递归替换环境变量
+    def substitute_recursive(obj: Any) -> Any:
+        if isinstance(obj, dict):
+            return {k: substitute_recursive(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [substitute_recursive(item) for item in obj]
+        elif isinstance(obj, str):
+            return _substitute_env(obj)
+        return obj
+
+    return substitute_recursive(config)
+
+
+_yaml_config = _load_config_yaml()
 
 
 class Settings(BaseSettings):
     """应用配置类"""
 
-    # SiliconFlow API 配置
-    siliconflow_api_key: str = Field(
-        default="",
-        description="SiliconFlow API 密钥"
-    )
-    siliconflow_base_url: str = Field(
-        default="https://api.siliconflow.cn/v1",
-        description="SiliconFlow API 基础 URL"
-    )
+    # SiliconFlow API
+    siliconflow_api_key: str = ""
+    siliconflow_base_url: str = "https://api.siliconflow.cn/v1"
 
-    # 嵌入模型配置
-    embedding_model: str = Field(
-        default="BAAI/bge-m3",
-        description="嵌入模型名称"
-    )
+    # 模型配置
+    embedding_model: str = "BAAI/bge-m3"
+    reranker_model: str = "BAAI/bge-reranker-v2-m3"
+    reranker_enabled: bool = True
+    reranker_top_n: int = 3
+    llm_model: str = "Qwen/Qwen3-8B"
+    llm_temperature: float = 0.0
 
-    # Reranker 配置
-    reranker_model: str = Field(
-        default="BAAI/bge-reranker-v2-m3",
-        description="Reranker 模型名称"
-    )
-    reranker_enabled: bool = Field(
-        default=True,
-        description="是否启用 Reranker"
-    )
-    reranker_top_n: int = Field(
-        default=3,
-        ge=1,
-        le=10,
-        description="Reranker 返回的文档数量"
-    )
+    # 向量数据库
+    chroma_persist_dir: str = "./chroma_db"
 
-    # LLM 配置
-    llm_model: str = Field(
-        default="Qwen/Qwen3-8B",
-        description="LLM 模型名称"
-    )
-    llm_temperature: float = Field(
-        default=0.0,
-        ge=0.0,
-        le=2.0,
-        description="LLM 温度参数"
-    )
+    # 文档处理
+    split_strategy: str = "recursive"
+    separator_type: str = "auto"
+    default_chunk_size: int = 1000
+    default_chunk_overlap: int = 100
+    auto_detect_content_type: bool = True
 
-    # 向量数据库配置
-    chroma_persist_dir: str = Field(
-        default="./chroma_db",
-        description="Chroma 向量库持久化目录"
-    )
+    # Redis
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_password: Optional[str] = None
+    redis_db: int = 0
+    redis_enabled: bool = True
+    cache_ttl_query: int = 3600
+    cache_ttl_response: int = 86400
 
-    # 文档处理配置
-    split_strategy: str = Field(
-        default="recursive",
-        description="文档切分策略: recursive(递归), fixed(固定长度), parent_child(父子文档)"
-    )
-    default_chunk_size: int = Field(
-        default=1000,
-        ge=100,
-        le=5000,
-        description="文档切分块大小"
-    )
-    default_chunk_overlap: int = Field(
-        default=100,
-        ge=0,
-        le=1000,
-        description="文档切分重叠大小"
-    )
-    separator_type: str = Field(
-        default="auto",
-        description="分隔符类型(仅用于recursive策略): auto, chinese, markdown, code, english"
-    )
-    auto_detect_content_type: bool = Field(
-        default=True,
-        description="是否自动检测内容类型并选择分隔符"
-    )
+    # 应用
+    app_host: str = "0.0.0.0"
+    app_port: int = 8000
+    workers: int = 1
+    log_level: str = "INFO"
+    max_concurrent_requests: int = 50
+    max_retries: int = 3
+    retry_delay: float = 1.0
 
-    # Redis 缓存配置
-    redis_host: str = Field(
-        default="localhost",
-        description="Redis 主机地址"
-    )
-    redis_port: int = Field(
-        default=6379,
-        ge=1,
-        le=65535,
-        description="Redis 端口"
-    )
-    redis_password: Optional[str] = Field(
-        default=None,
-        description="Redis 密码"
-    )
-    redis_db: int = Field(
-        default=0,
-        ge=0,
-        le=15,
-        description="Redis 数据库编号"
-    )
-    redis_enabled: bool = Field(
-        default=True,
-        description="是否启用 Redis 缓存"
-    )
-    cache_ttl_query: int = Field(
-        default=3600,
-        ge=0,
-        description="向量查询缓存 TTL (秒)"
-    )
-    cache_ttl_response: int = Field(
-        default=86400,
-        ge=0,
-        description="LLM 响应缓存 TTL (秒)"
-    )
-
-    # 应用配置
-    app_host: str = Field(
-        default="0.0.0.0",
-        description="应用监听地址"
-    )
-    app_port: int = Field(
-        default=8000,
-        ge=1,
-        le=65535,
-        description="应用监听端口"
-    )
-    workers: int = Field(
-        default=1,
-        ge=1,
-        le=32,
-        description="工作进程数"
-    )
-    log_level: str = Field(
-        default="INFO",
-        description="日志级别"
-    )
-
-    # 并发控制
-    max_concurrent_requests: int = Field(
-        default=50,
-        ge=1,
-        le=1000,
-        description="最大并发请求数"
-    )
-
-    # 重试配置
-    max_retries: int = Field(
-        default=3,
-        ge=0,
-        le=10,
-        description="API 调用最大重试次数"
-    )
-    retry_delay: float = Field(
-        default=1.0,
-        ge=0.1,
-        description="重试延迟基数 (秒)"
-    )
+    @field_validator('*')
+    @classmethod
+    def validate_fields(cls, v):
+        """字符串字段去除前后空格"""
+        if isinstance(v, str):
+            return v.strip()
+        return v
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
-        extra="ignore"
+        extra="ignore",
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        """自定义配置优先级：环境变量 > YAML > 默认值"""
+        return (
+            init_settings,          # 初始化参数（最高优先级）
+            env_settings,           # 环境变量
+            dotenv_settings,        # .env 文件
+            file_secret_settings,   # secrets 文件
+        )
 
 
 @lru_cache
 def get_settings() -> Settings:
-    """
-    获取配置单例
+    """获取配置单例"""
+    # 从 YAML 加载默认值
+    yaml_defaults = {}
 
-    使用 lru_cache 确保配置只加载一次
-    """
-    return Settings()
+    def flatten_dict(d: dict, prefix: str = "") -> dict:
+        """展平嵌套字典，使用下划线连接"""
+        items = []
+        for k, v in d.items():
+            new_key = f"{prefix}_{k}" if prefix else k
+            if isinstance(v, dict):
+                items.extend(flatten_dict(v, new_key).items())
+            else:
+                items.append((new_key, v))
+        return dict(items)
+
+    if _yaml_config:
+        yaml_defaults = flatten_dict(_yaml_config)
+
+    return Settings(**yaml_defaults)
 
 
 # 导出配置实例

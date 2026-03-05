@@ -20,6 +20,7 @@ aiohttp>=3.9.0  # 异步 HTTP 客户端
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 python-dotenv>=1.0.0
+pyyaml>=6.0
 
 # ==================== 缓存 ====================
 aioredis>=2.0.1

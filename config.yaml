@@ -1,0 +1,53 @@
+# RAG 系统配置文件
+
+# SiliconFlow API（敏感信息建议通过环境变量设置）
+siliconflow:
+  api_key: ${SILICONFLOW_API_KEY:""}  # 从环境变量读取
+  base_url: "https://api.siliconflow.cn/v1"
+
+  # 模型配置
+  models:
+    embedding: "BAAI/bge-m3"
+    reranker: "BAAI/bge-reranker-v2-m3"
+    llm: "Qwen/Qwen3-8B"
+    temperature: 0.0
+
+  # Reranker 配置
+  reranker:
+    enabled: true
+    top_n: 3
+
+# 文档处理
+document:
+  split:
+    strategy: recursive      # recursive | fixed | parent_child
+    separator_type: auto     # auto | chinese | markdown | code | english
+    chunk_size: 1000         # 100-5000
+    chunk_overlap: 100       # 0-1000
+  auto_detect: true          # 自动检测内容类型
+
+# 向量数据库
+vectorstore:
+  type: chroma
+  persist_dir: ./chroma_db
+
+# Redis 缓存
+redis:
+  enabled: true
+  host: localhost
+  port: 6379
+  db: 0
+  password: ${REDIS_PASSWORD:""}  # 从环境变量读取
+  cache_ttl:
+    query: 3600      # 1小时
+    response: 86400  # 24小时
+
+# 应用配置
+app:
+  host: 0.0.0.0
+  port: 8000
+  workers: 1
+  log_level: INFO      # DEBUG | INFO | WARNING | ERROR
+  max_concurrent: 50   # 最大并发请求数
+  retries: 3           # API 重试次数
+  retry_delay: 1.0     # 重试延迟（秒）
