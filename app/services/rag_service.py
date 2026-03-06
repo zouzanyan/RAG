@@ -6,7 +6,6 @@ import asyncio
 import os
 from pathlib import Path
 from typing import List, Optional, AsyncIterator
-from pydantic import SecretStr
 
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
@@ -50,7 +49,7 @@ class LocalKnowledgeEngine:
         if embedding_model is None:
             self.embedding_model = OpenAIEmbeddings(
                 base_url=settings.siliconflow_base_url,
-                api_key=SecretStr(settings.siliconflow_api_key),
+                api_key=settings.siliconflow_api_key,
                 model=settings.embedding_model,
             )
         else:
@@ -217,7 +216,7 @@ class LocalKnowledgeEngine:
         # 初始化 LLM
         llm = ChatOpenAI(
             base_url=f"{settings.siliconflow_base_url}/",
-            api_key=SecretStr(settings.siliconflow_api_key),
+            api_key=settings.siliconflow_api_key,
             model=settings.llm_model,
             temperature=settings.llm_temperature,
         )
@@ -328,10 +327,13 @@ class LocalKnowledgeEngine:
 
         logger.debug(f"Streaming query: {question[:50]}...")
 
-        async for chunk in self.rag_chain.astream_log(question):
-            if chunk.name == "ChatOpenAI":
-                for token in chunk.generations[0][:]:
-                    yield token.text
+        # 使用 astream 直接流式输出结果
+        async for chunk in self.rag_chain.astream(question):
+            # chunk 可能是 AIMessage 对象，提取其 content
+            if hasattr(chunk, 'content'):
+                yield chunk.content
+            elif isinstance(chunk, str):
+                yield chunk
 
     async def close(self):
         """关闭资源"""

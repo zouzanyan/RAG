@@ -4,7 +4,6 @@
 """
 import asyncio
 from typing import List, Optional
-from pydantic import SecretStr
 import aiohttp
 from tenacity import (
     retry,
@@ -87,6 +86,11 @@ class SiliconFlowReranker:
         Raises:
             APIError: API 调用失败
         """
+        # 如果文档列表为空，直接返回空结果
+        if not documents:
+            logger.warning("Empty document list provided to reranker, returning empty results")
+            return []
+
         url = f"{self.base_url}/rerank"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -102,7 +106,8 @@ class SiliconFlowReranker:
         session = await self._get_session()
 
         try:
-            logger.debug(f"Calling rerank API: {url}", extra={
+            logger.info(f"Calling rerank API: {url}", extra={
+                "model": self.model,
                 "query": query[:50],
                 "doc_count": len(documents),
                 "top_n": top_n,
@@ -147,6 +152,11 @@ class SiliconFlowReranker:
         Returns:
             排序后的 Document 对象列表
         """
+        # 如果文档列表为空，直接返回空结果
+        if not documents:
+            logger.warning("Empty document list provided to rerank_documents, returning empty results")
+            return []
+
         doc_texts = [doc.page_content for doc in documents]
         rerank_results = await self.rerank(query, doc_texts, top_n)
 

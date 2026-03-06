@@ -5,7 +5,7 @@
 import hashlib
 import json
 from typing import Optional, Any
-import aioredis
+import redis.asyncio as redis
 from app.core.config import settings
 from app.utils.logger import get_logger
 
@@ -37,7 +37,7 @@ class RedisCache:
     """Redis 缓存客户端"""
 
     def __init__(self):
-        self._redis: Optional[aioredis.Redis] = None
+        self._redis: Optional[redis.Redis] = None
         self._enabled = settings.redis_enabled
 
     async def connect(self):
@@ -47,7 +47,7 @@ class RedisCache:
             return
 
         try:
-            self._redis = await aioredis.from_url(
+            self._redis = await redis.from_url(
                 f"redis://{settings.redis_host}:{settings.redis_port}/{settings.redis_db}",
                 password=settings.redis_password,
                 encoding="utf-8",

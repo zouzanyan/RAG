@@ -28,10 +28,51 @@ def _substitute_env(value: str) -> str:
     return re.sub(pattern, replace_var, value)
 
 
+def _get_project_root() -> Path:
+    """获取项目根目录"""
+    # 从当前文件位置向上查找：app/core/config.py -> app -> 项目根目录
+    return Path(__file__).parent.parent.parent
+
+
+def _resolve_path(path: str) -> str:
+    """
+    解析路径，将相对路径转换为相对于项目根目录的绝对路径
+
+    Args:
+        path: 输入路径（可以是相对路径或绝对路径）
+
+    Returns:
+        解析后的绝对路径
+    """
+    path_obj = Path(path)
+
+    # 如果是绝对路径，直接返回
+    if path_obj.is_absolute():
+        return str(path_obj)
+
+    # 如果是相对路径，相对于项目根目录
+    project_root = _get_project_root()
+    resolved_path = project_root / path_obj
+    return str(resolved_path)
+
+
 def _load_config_yaml() -> dict:
     """加载 config.yaml 并替换环境变量"""
-    config_path = Path("config.yaml")
-    if not config_path.exists():
+    # 尝试多个路径查找配置文件，确保无论从哪个目录启动都能找到
+    possible_paths = [
+        Path("config.yaml"),  # 当前工作目录
+        Path(__file__).parent.parent.parent / "config.yaml",  # 相对于模块位置：app/core/config.py -> 项目根目录
+    ]
+
+    config_path = None
+    for path in possible_paths:
+        if path.exists():
+            config_path = path
+            print(f"[CONFIG] Found config.yaml at: {path.absolute()}")
+            break
+
+    if not config_path:
+        print("[CONFIG] WARNING: config.yaml not found, using defaults")
         return {}
 
     with open(config_path, 'r', encoding='utf-8') as f:
@@ -149,7 +190,16 @@ def get_settings() -> Settings:
     if _yaml_config:
         yaml_defaults = flatten_dict(_yaml_config)
 
-    return Settings(**yaml_defaults)
+    settings = Settings(**yaml_defaults)
+
+    # 后处理：将 chroma_persist_dir 转换为绝对路径
+    if settings.chroma_persist_dir:
+        original_path = settings.chroma_persist_dir
+        resolved_path = _resolve_path(settings.chroma_persist_dir)
+        object.__setattr__(settings, 'chroma_persist_dir', resolved_path)
+        print(f"[CONFIG] Resolved chroma_persist_dir: {original_path} -> {resolved_path}")
+
+    return settings
 
 
 # 导出配置实例

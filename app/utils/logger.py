@@ -1,40 +1,12 @@
 """日志系统配置
 
-使用 loguru 提供结构化日志，支持 JSON 格式输出和请求链路追踪。
+使用 loguru 提供结构化日志。
 """
 import sys
-import json
 from pathlib import Path
 from typing import Any
 from loguru import logger
 from app.core.config import settings
-
-
-def serialize_log(record: dict[str, Any]) -> str:
-    """
-    序列化日志记录为 JSON 格式
-
-    Args:
-        record: 日志记录字典
-
-    Returns:
-        JSON 格式的日志字符串
-    """
-    subset = {
-        "timestamp": record["time"].isoformat(),
-        "level": record["level"].name,
-        "logger": record["name"],
-        "message": record["message"],
-        "module": record["module"],
-        "function": record["function"],
-        "line": record["line"],
-    }
-
-    # 添加额外字段
-    if "extra" in record:
-        subset.update(record["extra"])
-
-    return json.dumps(subset, ensure_ascii=False)
 
 
 def setup_logger() -> None:
@@ -42,7 +14,6 @@ def setup_logger() -> None:
     配置 loguru 日志系统
 
     - 控制台输出：格式化文本
-    - 文件输出：JSON 格式，支持日志轮转
     """
     # 移除默认的处理器
     logger.remove()
@@ -60,33 +31,6 @@ def setup_logger() -> None:
         colorize=True,
         backtrace=True,
         diagnose=True,
-    )
-
-    # 文件输出 - JSON 格式（用于日志分析）
-    log_dir = Path("logs")
-    log_dir.mkdir(exist_ok=True)
-
-    logger.add(
-        log_dir / "app_{time:YYYY-MM-DD}.log",
-        format=serialize_log,
-        level="DEBUG",
-        rotation="00:00",  # 每天午夜轮转
-        retention="30 days",  # 保留 30 天
-        compression="zip",  # 压缩旧日志
-        enqueue=True,  # 异步写入
-        encoding="utf-8",
-    )
-
-    # 错误日志单独记录
-    logger.add(
-        log_dir / "error_{time:YYYY-MM-DD}.log",
-        format=serialize_log,
-        level="ERROR",
-        rotation="00:00",
-        retention="90 days",
-        compression="zip",
-        enqueue=True,
-        encoding="utf-8",
     )
 
 
