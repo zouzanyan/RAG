@@ -270,10 +270,51 @@ async def list_documents(
 
     返回已加载的文档信息。
     """
-    # 简化实现，返回基本文档信息
-    return DocumentListResponse(
-        total=len(engine.docs),
-        documents=[
+    # 从向量库中获取文档信息
+    documents = []
+
+    if engine.vectorstore:
+        try:
+            # 从向量库的 collection 中获取所有文档的元数据
+            collection = engine.vectorstore._collection
+            results = collection.get(include=['metadatas'])
+
+            # 使用字典去重（按文件名）
+            unique_docs = {}
+            for metadata in results['metadatas']:
+                source = metadata.get('source', '')
+                if source:
+                    # 提取文件名
+                    filename = source.split('\\')[-1].split('/')[-1]
+                    unique_docs[filename] = {
+                        'filename': filename,
+                        'source': source,
+                        'chunk_count': 0  # 稍后统计
+                    }
+
+            # 统计每个文件的chunk数量
+            for metadata in results['metadatas']:
+                source = metadata.get('source', '')
+                if source:
+                    filename = source.split('\\')[-1].split('/')[-1]
+                    if filename in unique_docs:
+                        unique_docs[filename]['chunk_count'] += 1
+
+            # 转换为 DocumentInfo 对象
+            from datetime import datetime
+            for doc_info in unique_docs.values():
+                documents.append(DocumentInfo(
+                    doc_id=str(hash(doc_info['source']) & 0x7fffffffffffffff),  # 转换为字符串
+                    filename=doc_info['filename'],
+                    chunk_count=doc_info['chunk_count'],
+                    created_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                ))
+        except Exception as e:
+            logger.error(f"Failed to get documents from vectorstore: {e}")
+
+    # 如果向量库为空，返回 engine.docs（兼容旧逻辑）
+    if not documents and engine.docs:
+        documents = [
             DocumentInfo(
                 doc_id=str(i),
                 filename=f"document_{i}",
@@ -281,7 +322,11 @@ async def list_documents(
                 created_at="",
             )
             for i in range(len(engine.docs))
-        ],
+        ]
+
+    return DocumentListResponse(
+        total=len(documents),
+        documents=documents,
     )
 
 

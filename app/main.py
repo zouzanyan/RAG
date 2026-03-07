@@ -5,9 +5,11 @@
 import time
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
@@ -177,13 +179,42 @@ async def global_exception_handler(request: Request, exc: Exception):
 # 注册 API 路由
 app.include_router(router)
 
+# 挂载静态文件
+static_dir = Path(__file__).parent.parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+    app_logger.info(f"Static files mounted from: {static_dir}")
+else:
+    app_logger.warning(f"Static directory not found: {static_dir}")
+
 
 # ==================== 根路径 ====================
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def root():
     """
     根路径
+
+    返回前端页面。
+    """
+    index_file = static_dir / "index.html"
+    if index_file.exists():
+        return HTMLResponse(content=index_file.read_text(encoding='utf-8'))
+    return HTMLResponse(content="""
+    <html>
+        <head><title>RAG API</title></head>
+        <body>
+            <h1>RAG Knowledge Base Q&A System</h1>
+            <p>API is running. Visit <a href="/docs">/docs</a> for API documentation.</p>
+            <p>Frontend not found. Please ensure static files are built.</p>
+        </body>
+    </html>
+    """)
+
+@app.get("/api")
+async def api_info():
+    """
+    API 信息端点
 
     返回 API 基本信息。
     """

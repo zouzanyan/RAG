@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG 知识库问答系统</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <header class="header">
+            <h1>📚 RAG 知识库问答系统</h1>
+            <div class="status-indicator">
+                <span class="status-dot" id="statusDot"></span>
+                <span class="status-text" id="statusText">检查中...</span>
+            </div>
+        </header>
+
+        <!-- 主要内容区域 -->
+        <div class="main-content">
+            <!-- 左侧：文档管理 -->
+            <aside class="sidebar">
+                <div class="card">
+                    <h2>📄 文档管理</h2>
+                    <div class="upload-section">
+                        <input type="file" id="fileInput" accept=".txt" style="display: none;">
+                        <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                            <span>➕</span> 上传文档
+                        </button>
+                        <div class="file-info" id="fileInfo"></div>
+                    </div>
+                    <div class="document-list">
+                        <h3>已上传文档</h3>
+                        <div id="documentList" class="document-list-items">
+                            <p class="text-muted">加载中...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>⚙️ 系统配置</h2>
+                    <div class="config-info" id="configInfo">
+                        <p class="text-muted">加载中...</p>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- 右侧：查询区域 -->
+            <main class="query-section">
+                <div class="card">
+                    <h2>🔍 智能问答</h2>
+                    <div class="query-box">
+                        <textarea
+                            id="queryInput"
+                            placeholder="请输入您的问题..."
+                            rows="3"
+                        ></textarea>
+                        <div class="query-actions">
+                            <button class="btn btn-primary" id="queryBtn" onclick="submitQuery()">
+                                <span>💬</span> 提问
+                            </button>
+                            <button class="btn btn-secondary" onclick="clearQuery()">
+                                <span>🗑️</span> 清空
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 查询结果 -->
+                <div class="card" id="resultCard" style="display: none;">
+                    <h2>📝 回答</h2>
+                    <div class="result-content" id="resultContent">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p>思考中...</p>
+                        </div>
+                    </div>
+                    <div class="result-meta" id="resultMeta"></div>
+                </div>
+
+                <!-- 历史记录 -->
+                <div class="card">
+                    <h2>📜 对话历史</h2>
+                    <div class="chat-history" id="chatHistory">
+                        <p class="text-muted">暂无对话记录</p>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- 页脚 -->
+        <footer class="footer">
+            <p>© 2026 RAG Knowledge Base Q&A System</p>
+        </footer>
+    </div>
+
+    <!-- Toast 通知 -->
+    <div class="toast" id="toast"></div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
