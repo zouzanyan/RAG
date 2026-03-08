@@ -48,8 +48,8 @@ class LocalKnowledgeEngine:
         # 初始化嵌入模型
         if embedding_model is None:
             self.embedding_model = OpenAIEmbeddings(
-                base_url=settings.siliconflow_base_url,
-                api_key=settings.siliconflow_api_key,
+                base_url=settings.llm_base_url,
+                api_key=settings.llm_api_key,
                 model=settings.embedding_model,
             )
         else:
@@ -61,7 +61,7 @@ class LocalKnowledgeEngine:
 
         if self.use_rerank:
             self.reranker = SiliconFlowReranker(
-                api_key=settings.siliconflow_api_key,
+                api_key=settings.llm_api_key,
             )
         else:
             self.reranker = None
@@ -215,8 +215,8 @@ class LocalKnowledgeEngine:
         """构建 RAG 链（异步）"""
         # 初始化 LLM
         llm = ChatOpenAI(
-            base_url=f"{settings.siliconflow_base_url}/",
-            api_key=settings.siliconflow_api_key,
+            base_url=f"{settings.llm_base_url}/",
+            api_key=settings.llm_api_key,
             model=settings.llm_model,
             temperature=settings.llm_temperature,
         )

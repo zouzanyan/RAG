@@ -1,5 +1,6 @@
-"""硅基流动 Rerank 模型（异步版本）
+"""通用 Rerank 模型客户端（异步版本）
 
+支持任何兼容 OpenAI Rerank API 格式的服务（OpenAI/Azure/SiliconFlow/其他）。
 使用 aiohttp 实现异步 HTTP 请求，支持高并发场景。
 """
 import asyncio
@@ -24,13 +25,19 @@ class APIError(Exception):
 
 
 class SiliconFlowReranker:
-    """硅基流动 Rerank 模型客户端（异步版本）"""
+    """通用 Reranker 客户端（异步版本）
+
+    支持任何兼容 OpenAI Rerank API 格式的服务。
+
+    注意：类名保留 SiliconFlowReranker 以保持 API 兼容性。
+    实际上这是一个通用的 reranker 客户端，不限于硅基流动。
+    """
 
     def __init__(
         self,
         api_key: str,
-        model: str = None,
-        base_url: str = None,
+        model: Optional[str] = None,
+        base_url: Optional[str] = None,
     ):
         """
         初始化 Reranker
@@ -42,7 +49,7 @@ class SiliconFlowReranker:
         """
         self.api_key = api_key
         self.model = model or settings.reranker_model
-        self.base_url = (base_url or settings.siliconflow_base_url).rstrip("/")
+        self.base_url = (base_url or settings.llm_base_url).rstrip("/")
         self._session: Optional[aiohttp.ClientSession] = None
 
     async def _get_session(self) -> aiohttp.ClientSession:
@@ -188,6 +195,6 @@ class SiliconFlowReranker:
         """异步上下文管理器入口"""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, _exc_type, _exc_val, _exc_tb):
         """异步上下文管理器出口"""
         await self.close()

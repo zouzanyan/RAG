@@ -97,9 +97,10 @@ _yaml_config = _load_config_yaml()
 class Settings(BaseSettings):
     """应用配置类"""
 
-    # SiliconFlow API
-    siliconflow_api_key: str = ""
-    siliconflow_base_url: str = "https://api.siliconflow.cn/v1"
+    # LLM 提供商配置（通用）
+    llm_provider_type: str = "custom"  # openai | azure | siliconflow | custom
+    llm_api_key: str = ""
+    llm_base_url: str = "https://api.openai.com/v1"
 
     # 模型配置
     embedding_model: str = "BAAI/bge-m3"
@@ -176,21 +177,84 @@ def get_settings() -> Settings:
     # 从 YAML 加载默认值
     yaml_defaults = {}
 
+    # 字段映射规则：将 YAML 中的路径映射到 Settings 类的字段名
+    FIELD_MAPPINGS = {
+        # llm_provider -> llm_* (去掉 llm_provider 前缀)
+        "llm_provider_type": "llm_provider_type",
+        "llm_provider_api_key": "llm_api_key",
+        "llm_provider_base_url": "llm_base_url",
+        "llm_provider_models_embedding": "embedding_model",
+        "llm_provider_models_reranker": "reranker_model",
+        "llm_provider_models_llm": "llm_model",
+        "llm_provider_models_temperature": "llm_temperature",
+        "llm_provider_reranker_enabled": "reranker_enabled",
+        "llm_provider_reranker_top_n": "reranker_top_n",
+
+        # document -> split_*, auto_detect_*
+        "document_split_strategy": "split_strategy",
+        "document_split_separator_type": "separator_type",
+        "document_split_chunk_size": "default_chunk_size",
+        "document_split_chunk_overlap": "default_chunk_overlap",
+        "document_auto_detect": "auto_detect_content_type",
+
+        # vectorstore -> chroma_persist_dir
+        "vectorstore_persist_dir": "chroma_persist_dir",
+
+        # redis -> redis_*
+        "redis_enabled": "redis_enabled",
+        "redis_host": "redis_host",
+        "redis_port": "redis_port",
+        "redis_db": "redis_db",
+        "redis_password": "redis_password",
+        "redis_cache_ttl_query": "cache_ttl_query",
+        "redis_cache_ttl_response": "cache_ttl_response",
+
+        # app -> app_*
+        "app_host": "app_host",
+        "app_port": "app_port",
+        "app_workers": "workers",
+        "app_log_level": "log_level",
+        "app_max_concurrent": "max_concurrent_requests",
+        "app_retries": "max_retries",
+        "app_retry_delay": "retry_delay",
+    }
+
     def flatten_dict(d: dict, prefix: str = "") -> dict:
-        """展平嵌套字典，使用下划线连接"""
+        """展平嵌套字典，使用下划线连接，并应用字段映射"""
         items = []
         for k, v in d.items():
             new_key = f"{prefix}_{k}" if prefix else k
+
             if isinstance(v, dict):
                 items.extend(flatten_dict(v, new_key).items())
             else:
-                items.append((new_key, v))
+                # 应用字段映射
+                mapped_key = FIELD_MAPPINGS.get(new_key, new_key)
+                items.append((mapped_key, v))
         return dict(items)
 
     if _yaml_config:
         yaml_defaults = flatten_dict(_yaml_config)
+        # 调试：打印加载的配置
+        print(f"[CONFIG] Loaded {len(yaml_defaults)} config items from YAML")
+        # 只打印敏感信息被掩盖的版本
+        safe_defaults = {k: "***" if "api_key" in k or "password" in k else v
+                        for k, v in yaml_defaults.items()}
+        print(f"[CONFIG] Config items: {list(safe_defaults.keys())}")
 
     settings = Settings(**yaml_defaults)
+
+    # 验证关键配置
+    if settings.llm_api_key:
+        print(f"[CONFIG] [OK] LLM API key loaded (length: {len(settings.llm_api_key)})")
+    else:
+        print("[CONFIG] [WARN] LLM API key not set!")
+
+    if settings.llm_base_url:
+        print(f"[CONFIG] [OK] LLM base URL: {settings.llm_base_url}")
+
+    print(f"[CONFIG] [OK] Embedding model: {settings.embedding_model}")
+    print(f"[CONFIG] [OK] LLM model: {settings.llm_model}")
 
     # 后处理：将 chroma_persist_dir 转换为绝对路径
     if settings.chroma_persist_dir:
